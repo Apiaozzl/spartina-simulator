@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="互花米草治理教学模拟器：通过调整年增长率与年度清除比例，观察种群在简化离散 Logistic 模型下的长期变化。">
+  <title>互花米草治理模拟器</title>
+  <style>
+    :root{
+      --green:#2F4A3B;
+      --green-soft:#F3F7F0;
+      --blue:#2F6FB3;
+      --orange:#C0552A;
+      --amber:#8a6d1a;
+      --text:#2a3a31;
+      --muted:#6f7b75;
+      --line:#E4E3DD;
+      --paper:#FFFFFF;
+      --panel:#FBFCFA;
+      --warn:#FFF8F0;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:#f6f7f4;color:var(--text)}
+    body{
+      font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      padding:18px 12px 28px;
+    }
+    .app{
+      max-width:820px;
+      margin:0 auto;
+      background:var(--paper);
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 10px 30px rgba(0,0,0,.05);
+    }
+    h1{font-size:22px;line-height:1.35;margin:0 0 6px;color:var(--green)}
+    .subtitle{font-size:12.5px;line-height:1.65;color:var(--muted);margin-bottom:14px}
+    .formula{
+      display:inline-block;
+      margin-top:4px;
+      padding:4px 8px;
+      border-radius:8px;
+      background:#f2f4f1;
+      color:#445149;
+      font-family:Cambria,Georgia,serif;
+      font-size:12px;
+    }
+    .chart-card{
+      background:var(--panel);
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:8px 4px 2px;
+    }
+    svg{width:100%;height:auto;display:block}
+    .controls{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+      margin:14px 0 8px;
+    }
+    .control{
+      background:var(--green-soft);
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:12px;
+      padding:10px 12px;
+    }
+    .control-head{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:baseline;
+      font-size:13px;
+    }
+    .value{font-size:15px;color:var(--green)}
+    .value.orange{color:var(--orange)}
+    input[type="range"]{width:100%;height:42px;margin:1px 0 0;accent-color:var(--green)}
+    .hint{font-size:11px;line-height:1.5;color:var(--muted)}
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+      margin:10px 0;
+    }
+    .metric{
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:11px;
+      padding:9px 10px;
+      background:#fff;
+    }
+    .metric-label{font-size:11px;color:var(--muted);margin-bottom:3px}
+    .metric-value{font-size:17px;font-weight:700;color:var(--green)}
+    .verdict{
+      background:var(--warn);
+      border:1px solid rgba(0,0,0,.1);
+      border-radius:12px;
+      padding:11px 12px;
+      font-size:13.5px;
+      line-height:1.65;
+      margin-top:10px;
+    }
+    .teaching-note{
+      margin-top:10px;
+      padding:10px 12px;
+      border-left:4px solid var(--green);
+      background:#f7faf6;
+      border-radius:8px;
+      font-size:12px;
+      line-height:1.65;
+      color:#46534c;
+    }
+    .assumptions{
+      margin-top:12px;
+      border-top:1px solid #eceeea;
+      padding-top:10px;
+      font-size:11.5px;
+      color:var(--muted);
+      line-height:1.65;
+    }
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:12px;
+    }
+    button{
+      appearance:none;
+      border:1px solid rgba(0,0,0,.14);
+      background:#fff;
+      color:var(--text);
+      border-radius:9px;
+      padding:8px 11px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    button:hover{background:#f4f6f3}
+    .status{font-size:11.5px;color:var(--muted);align-self:center;min-height:18px}
+    @media (max-width:640px){
+      body{padding:8px}
+      .app{padding:13px;border-radius:14px}
+      h1{font-size:19px}
+      .controls,.metrics{grid-template-columns:1fr}
+      .metric{display:flex;justify-content:space-between;align-items:center}
+      .metric-label{margin:0}
+      .metric-value{font-size:15px}
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>互花米草治理模拟器</h1>
+    <div class="subtitle">
+      调整互花米草的年增长率 <b>r</b> 与每年人工清除比例 <b>c</b>，观察种群长期变化。
+      纵轴表示种群数量占环境容纳量 <b>K</b> 的百分比。
+      <div class="formula">N(t+1)=N(t)+r·N(t)·(1−N(t)/K)−c·N(t)</div>
+    </div>
+
+    <section class="chart-card" aria-label="模拟结果图">
+      <svg id="chart" viewBox="0 0 600 320" role="img" aria-label="互花米草种群变化曲线图">
+        <g id="grid"></g>
+        <g id="curves"></g>
+        <g id="labels"></g>
+      </svg>
+    </section>
+
+    <section class="controls" aria-label="模型参数">
+      <div class="control">
+        <div class="control-head">
+          <span>互花米草年增长率 r</span>
+          <b id="rVal" class="value">100%/年</b>
+        </div>
+        <input id="rSlider" type="range" min="20" max="150" step="5" value="100" aria-label="互花米草年增长率">
+        <div class="hint">20%–150%。这里的 r 是 Logistic 模型中的增长参数；“100%/年”不等于任何种群状态下都恰好翻倍。</div>
+      </div>
+
+      <div class="control">
+        <div class="control-head">
+          <span>每年人工清除比例 c</span>
+          <b id="cVal" class="value orange">50%</b>
+        </div>
+        <input id="cSlider" type="range" min="0" max="100" step="1" value="50" aria-label="每年人工清除比例">
+        <div class="hint">0%–100%。思考：只清除 50%，为什么未必意味着种群最终减少一半？</div>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="关键结果">
+      <div class="metric">
+        <div class="metric-label">模型长期平衡</div>
+        <div id="eqMetric" class="metric-value">50%K</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">第 30 年种群</div>
+        <div id="y30Metric" class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">治理判断</div>
+        <div id="stateMetric" class="metric-value">—</div>
+      </div>
+    </section>
+
+    <div id="verdict" class="verdict" aria-live="polite"></div>
+
+    <div class="teaching-note">
+      <b>教学结论：</b>
+      在这个简化模型中，若 <b>c&lt;r</b>，种群仍存在正的长期平衡
+      <b>N*=K(1−c/r)</b>；若 <b>c&gt;r</b>，种群会持续向 0 衰减；
+      <b>c=r</b> 是临界阈值，此时种群也会下降，但接近 0 时下降会越来越慢。
+    </div>
+
+    <div class="assumptions">
+      <b>模型边界：</b>
+      本工具用于课堂理解“增长—清除—平衡”的关系，并非对真实互花米草治理效果的现场预测。
+      模型假设 K、r 与 c 在模拟期内固定，且暂不考虑种子库、外来迁入、空间扩散、季节性、清除效率差异与重复萌发等现实因素。
+    </div>
+
+    <div class="actions">
+      <button id="resetBtn" type="button">恢复默认参数</button>
+      <button id="copyBtn" type="button">复制当前参数链接</button>
+      <span id="status" class="status" aria-live="polite"></span>
+    </div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+
+  var svg = document.getElementById("chart");
+  var rSlider = document.getElementById("rSlider");
+  var cSlider = document.getElementById("cSlider");
+  var rVal = document.getElementById("rVal");
+  var cVal = document.getElementById("cVal");
+  var verdict = document.getElementById("verdict");
+  var eqMetric = document.getElementById("eqMetric");
+  var y30Metric = document.getElementById("y30Metric");
+  var stateMetric = document.getElementById("stateMetric");
+  var resetBtn = document.getElementById("resetBtn");
+  var copyBtn = document.getElementById("copyBtn");
+  var status = document.getElementById("status");
+
+  if (!svg || !rSlider || !cSlider || !rVal || !cVal || !verdict) return;
+
+  var NS = "http://www.w3.org/2000/svg";
+  var K = 100, N0 = 5, YEARS = 30;
+  var PL = 56, PR = 12, PT = 16, PB = 30;
+  var W = 600, H = 320;
+  var plotW = W - PL - PR, plotH = H - PT - PB;
+
+  function xOf(year) { return PL + (year / YEARS) * plotW; }
+  function yOf(n) { return PT + (1 - Math.max(0, Math.min(100, n)) / 100) * plotH; }
+
+  function el(tag, attrs) {
+    var e = document.createElementNS(NS, tag);
+    Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+
+  function clear(g) {
+    while (g.firstChild) g.removeChild(g.firstChild);
+  }
+
+  function simulate(r, c) {
+    var arr = [N0];
+    var n = N0;
+    for (var t = 1; t <= YEARS; t++) {
+      var grow = r * n * (1 - n / K);
+      var after = n + grow - c * n;
+      if (after < 0) after = 0;
+      n = after;
+      arr.push(n);
+    }
+    return arr;
+  }
+
+  function pathFor(arr) {
+    var d = "M" + xOf(0).toFixed(1) + "," + yOf(arr[0]).toFixed(1);
+    for (var t = 1; t <= YEARS; t++) {
+      d += " L" + xOf(t).toFixed(1) + "," + yOf(arr[t]).toFixed(1);
+    }
+    return d;
+  }
+
+  function text(x, y, str, fill, size, anchor) {
+    var t = el("text", {
+      x: x, y: y, fill: fill, "font-size": size,
+      "text-anchor": anchor || "start"
+    });
+    t.textContent = str;
+    return t;
+  }
+
+  function readParamsFromUrl() {
+    try {
+      var p = new URLSearchParams(window.location.search);
+      var r = Number(p.get("r"));
+      var c = Number(p.get("c"));
+      if (Number.isFinite(r) && r >= 20 && r <= 150) rSlider.value = Math.round(r / 5) * 5;
+      if (Number.isFinite(c) && c >= 0 && c <= 100) cSlider.value = Math.round(c);
+    } catch (e) {}
+  }
+
+  function updateUrlSilently() {
+    if (!window.history || !window.history.replaceState) return;
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set("r", rSlider.value);
+      u.searchParams.set("c", cSlider.value);
+      window.history.replaceState({}, "", u.toString());
+    } catch (e) {}
+  }
+
+  function draw() {
+    var r = Number(rSlider.value) / 100;
+    var c = Number(cSlider.value) / 100;
+
+    rVal.textContent = Math.round(r * 100) + "%/年";
+    cVal.textContent = Math.round(c * 100) + "%";
+
+    var grid = document.getElementById("grid");
+    var curves = document.getElementById("curves");
+    var labels = document.getElementById("labels");
+    clear(grid); clear(curves); clear(labels);
+
+    var ticks = [0, 25, 50, 75, 100];
+    for (var i = 0; i < ticks.length; i++) {
+      var v = ticks[i], y = yOf(v);
+      grid.appendChild(el("line", {
+        x1: PL, y1: y, x2: PL + plotW, y2: y,
+        stroke: "#E4E3DD", "stroke-width": 1
+      }));
+      grid.appendChild(text(PL - 6, y + 4, v + "%", "#7a857f", 11, "end"));
+    }
+
+    for (var yr = 0; yr <= YEARS; yr += 5) {
+      var x = xOf(yr);
+      grid.appendChild(el("line", {
+        x1: x, y1: PT, x2: x, y2: PT + plotH,
+        stroke: "#EFEFEA", "stroke-width": 1
+      }));
+      grid.appendChild(text(x, PT + plotH + 16, yr + "年", "#7a857f", 11, "middle"));
+    }
+
+    grid.appendChild(el("line", {
+      x1: PL, y1: PT + plotH, x2: PL + plotW, y2: PT + plotH,
+      stroke: "#B9C0BC", "stroke-width": 1.2
+    }));
+    grid.appendChild(el("line", {
+      x1: PL, y1: PT, x2: PL, y2: PT + plotH,
+      stroke: "#B9C0BC", "stroke-width": 1.2
+    }));
+
+    var ref = simulate(r, 0);
+    curves.appendChild(el("path", {
+      d: pathFor(ref), fill: "none", stroke: "#9AA5A0",
+      "stroke-width": 1.8, "stroke-dasharray": "5 4"
+    }));
+
+    var main = simulate(r, c);
+    curves.appendChild(el("path", {
+      d: pathFor(main), fill: "none", stroke: "#2F6FB3",
+      "stroke-width": 2.6, "stroke-linecap": "round"
+    }));
+
+    var eq = c < r ? K * (1 - c / r) : 0;
+    var eqY = yOf(Math.max(eq, 0.5));
+    curves.appendChild(el("line", {
+      x1: PL, y1: eqY, x2: PL + plotW, y2: eqY,
+      stroke: "#C0552A", "stroke-width": 1.6, "stroke-dasharray": "7 4"
+    }));
+    labels.appendChild(text(
+      PL + plotW - 4, eqY - 5,
+      c < r ? "长期平衡 ≈ " + Math.round(eq) + "%K" : "长期趋向 0",
+      "#C0552A", 11, "end"
+    ));
+
+    labels.appendChild(text(PL + 6, PT + 12, "— 无清除", "#9AA5A0", 11));
+    labels.appendChild(text(PL + 86, PT + 12, "— 当前治理", "#2F6FB3", 11));
+    labels.appendChild(text(PL + 180, PT + 12, "— 长期平衡", "#C0552A", 11));
+
+    var rPct = Math.round(r * 100);
+    var cPct = Math.round(c * 100);
+    var y30 = main[main.length - 1];
+
+    eqMetric.textContent = c < r ? Math.round(eq) + "%K" : "0";
+    y30Metric.textContent = (Math.round(y30 * 10) / 10) + "%K";
+
+    if (c < r) {
+      var eqPct = Math.round((1 - c / r) * 100);
+      stateMetric.textContent = "仍会维持";
+      verdict.innerHTML =
+        '<b style="color:#C0552A;">c=' + cPct + '% ＜ r=' + rPct + '%：仍存在正平衡。</b><br>' +
+        '在本模型中，清除会把种群从“无治理时接近 K”压低到约 <b>' + eqPct +
+        '%K</b>，但不会长期压到 0。原因不是简单地比较“清掉多少”和“长出多少”，' +
+        '而是增长量还会随当前种群密度变化。';
+    } else if (c > r) {
+      stateMetric.textContent = "持续下降";
+      verdict.innerHTML =
+        '<b style="color:#2F6FB3;">c=' + cPct + '% ＞ r=' + rPct + '%：低密度下仍能被继续压低。</b><br>' +
+        '0 成为稳定状态，种群会逐年向 0 衰减。c 比 r 高得越多，通常压低速度越快。' +
+        '这里的“趋向 0”是模型中的长期结果，不等于现实治理中一定能彻底清除。';
+    } else {
+      stateMetric.textContent = "临界阈值";
+      verdict.innerHTML =
+        '<b style="color:#8a6d1a;">c=r=' + rPct + '%：这是临界阈值，不是“几乎不涨不跌”。</b><br>' +
+        '代入公式可得 N(t+1)=N(t)−r·N(t)²/K，因此只要 N(t)&gt;0，种群仍会下降；' +
+        '但当种群已经很低时，下降会越来越慢，长期渐近趋向 0。';
+    }
+
+    updateUrlSilently();
+  }
+
+  rSlider.addEventListener("input", draw);
+  cSlider.addEventListener("input", draw);
+
+  resetBtn.addEventListener("click", function () {
+    rSlider.value = 100;
+    cSlider.value = 50;
+    status.textContent = "";
+    draw();
+  });
+
+  copyBtn.addEventListener("click", async function () {
+    status.textContent = "";
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set("r", rSlider.value);
+      u.searchParams.set("c", cSlider.value);
+      await navigator.clipboard.writeText(u.toString());
+      status.textContent = "已复制当前参数链接";
+    } catch (e) {
+      status.textContent = "本地文件可能无法直接复制；部署到 HTTPS 后即可使用";
+    }
+  });
+
+  readParamsFromUrl();
+  draw();
+})();
+</script>
+</body>
+</html>
