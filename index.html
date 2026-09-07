@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="互花米草治理教学模拟器：通过调整年增长率与年度清除比例，观察种群在简化离散 Logistic 模型下的长期变化。">
+  <meta name="description" content="互花米草治理教学模拟器：比较增长率、清除比例与介入年份对种群变化和累计清除量的影响。">
   <title>互花米草治理模拟器</title>
   <style>
     :root{
@@ -11,10 +11,9 @@
       --green-soft:#F3F7F0;
       --blue:#2F6FB3;
       --orange:#C0552A;
-      --amber:#8a6d1a;
-      --text:#2a3a31;
-      --muted:#6f7b75;
-      --line:#E4E3DD;
+      --amber:#8A6D1A;
+      --text:#2A3A31;
+      --muted:#6F7B75;
       --paper:#FFFFFF;
       --panel:#FBFCFA;
       --warn:#FFF8F0;
@@ -53,18 +52,28 @@
       padding:8px 4px 2px;
     }
     svg{width:100%;height:auto;display:block}
-    .controls{
+
+    .section-label{
+      margin:13px 2px 6px;
+      font-size:11.5px;
+      font-weight:600;
+      color:#64736b;
+      letter-spacing:.02em;
+    }
+    .control-grid{
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:12px;
-      margin:14px 0 8px;
     }
+    .control-grid.single{grid-template-columns:1fr}
     .control{
+      min-width:0;
       background:var(--green-soft);
       border:1px solid rgba(0,0,0,.08);
       border-radius:12px;
       padding:10px 12px;
     }
+    .control.primary{padding:11px 14px}
     .control-head{
       display:flex;
       justify-content:space-between;
@@ -74,29 +83,40 @@
     }
     .value{font-size:15px;color:var(--green)}
     .value.orange{color:var(--orange)}
-    input[type="range"]{width:100%;height:42px;margin:1px 0 0;accent-color:var(--green)}
+    .value.amber{color:var(--amber)}
+    input[type="range"]{
+      width:100%;
+      height:42px;
+      margin:1px 0 0;
+      accent-color:var(--green);
+    }
     .hint{font-size:11px;line-height:1.5;color:var(--muted)}
+
     .metrics{
       display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:10px;
-      margin:10px 0;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:9px;
+      margin:12px 0 10px;
     }
     .metric{
       border:1px solid rgba(0,0,0,.08);
       border-radius:11px;
       padding:9px 10px;
       background:#fff;
+      min-width:0;
     }
-    .metric-label{font-size:11px;color:var(--muted);margin-bottom:3px}
-    .metric-value{font-size:17px;font-weight:700;color:var(--green)}
+    .metric-label{font-size:11px;color:var(--muted);margin-bottom:3px;line-height:1.35}
+    .metric-value{font-size:17px;font-weight:700;color:var(--green);white-space:nowrap}
+    .metric-value.orange{color:var(--orange)}
+    .metric-value.amber{color:var(--amber)}
+
     .verdict{
       background:var(--warn);
       border:1px solid rgba(0,0,0,.1);
       border-radius:12px;
       padding:11px 12px;
       font-size:13.5px;
-      line-height:1.65;
+      line-height:1.7;
       margin-top:10px;
     }
     .teaching-note{
@@ -106,7 +126,7 @@
       background:#f7faf6;
       border-radius:8px;
       font-size:12px;
-      line-height:1.65;
+      line-height:1.7;
       color:#46534c;
     }
     .assumptions{
@@ -115,6 +135,12 @@
       padding-top:10px;
       font-size:11.5px;
       color:var(--muted);
+      line-height:1.7;
+    }
+    .classroom{
+      font-size:11.5px;
+      color:var(--muted);
+      margin-top:8px;
       line-height:1.65;
     }
     .actions{
@@ -135,13 +161,15 @@
     }
     button:hover{background:#f4f6f3}
     .status{font-size:11.5px;color:var(--muted);align-self:center;min-height:18px}
-    @media (max-width:640px){
+
+    @media (max-width:700px){
+      .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:560px){
       body{padding:8px}
       .app{padding:13px;border-radius:14px}
       h1{font-size:19px}
-      .controls,.metrics{grid-template-columns:1fr}
-      .metric{display:flex;justify-content:space-between;align-items:center}
-      .metric-label{margin:0}
+      .control-grid{grid-template-columns:1fr}
       .metric-value{font-size:15px}
     }
   </style>
@@ -150,51 +178,69 @@
   <main class="app">
     <h1>互花米草治理模拟器</h1>
     <div class="subtitle">
-      调整互花米草的年增长率 <b>r</b> 与每年人工清除比例 <b>c</b>，观察种群长期变化。
-      纵轴表示种群数量占环境容纳量 <b>K</b> 的百分比。
+      调整互花米草的年增长率、每年清除比例与开始治理年份，观察种群变化以及治理时机对累计清除量的影响。
+      纵轴表示种群密度占环境容纳量 K 的百分比。
       <div class="formula">N(t+1)=N(t)+r·N(t)·(1−N(t)/K)−c·N(t)</div>
     </div>
 
     <section class="chart-card" aria-label="模拟结果图">
-      <svg id="chart" viewBox="0 0 600 320" role="img" aria-label="互花米草种群变化曲线图">
+      <svg id="chart" viewBox="0 0 600 330" role="img" aria-label="互花米草种群变化与治理时机图">
         <g id="grid"></g>
         <g id="curves"></g>
+        <g id="marks"></g>
         <g id="labels"></g>
       </svg>
     </section>
 
-    <section class="controls" aria-label="模型参数">
-      <div class="control">
+    <div class="section-label">种群参数</div>
+    <section class="control-grid single" aria-label="种群参数">
+      <div class="control primary">
         <div class="control-head">
-          <span>互花米草年增长率 r</span>
+          <span>年增长率 r</span>
           <b id="rVal" class="value">100%/年</b>
         </div>
-        <input id="rSlider" type="range" min="20" max="150" step="5" value="100" aria-label="互花米草年增长率">
-        <div class="hint">20%–150%。这里的 r 是 Logistic 模型中的增长参数；“100%/年”不等于任何种群状态下都恰好翻倍。</div>
+        <input id="rSlider" type="range" min="20" max="150" step="1" value="100" aria-label="年增长率">
+        <div class="hint">范围 20%–150%</div>
+      </div>
+    </section>
+
+    <div class="section-label">治理参数</div>
+    <section class="control-grid" aria-label="治理参数">
+      <div class="control">
+        <div class="control-head">
+          <span>每年清除比例 c</span>
+          <b id="cVal" class="value orange">50%</b>
+        </div>
+        <input id="cSlider" type="range" min="0" max="100" step="1" value="50" aria-label="每年清除比例">
+        <div class="hint">范围 0%–100%</div>
       </div>
 
       <div class="control">
         <div class="control-head">
-          <span>每年人工清除比例 c</span>
-          <b id="cVal" class="value orange">50%</b>
+          <span>开始治理年份</span>
+          <b id="tVal" class="value amber">第 3 年</b>
         </div>
-        <input id="cSlider" type="range" min="0" max="100" step="1" value="50" aria-label="每年人工清除比例">
-        <div class="hint">0%–100%。思考：只清除 50%，为什么未必意味着种群最终减少一半？</div>
+        <input id="tSlider" type="range" min="1" max="20" step="1" value="3" aria-label="开始治理年份">
+        <div class="hint">第 1–20 年</div>
       </div>
     </section>
 
     <section class="metrics" aria-label="关键结果">
       <div class="metric">
         <div class="metric-label">模型长期平衡</div>
-        <div id="eqMetric" class="metric-value">50%K</div>
+        <div id="eqMetric" class="metric-value">—</div>
       </div>
       <div class="metric">
         <div class="metric-label">第 30 年种群</div>
         <div id="y30Metric" class="metric-value">—</div>
       </div>
       <div class="metric">
-        <div class="metric-label">治理判断</div>
-        <div id="stateMetric" class="metric-value">—</div>
+        <div class="metric-label">治理后 10 年累计清除量</div>
+        <div id="cumMetric" class="metric-value orange">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">相对第 1 年治理倍数</div>
+        <div id="multMetric" class="metric-value amber">—</div>
       </div>
     </section>
 
@@ -205,12 +251,18 @@
       在这个简化模型中，若 <b>c&lt;r</b>，种群仍存在正的长期平衡
       <b>N*=K(1−c/r)</b>；若 <b>c&gt;r</b>，种群会持续向 0 衰减；
       <b>c=r</b> 是临界阈值，此时种群也会下降，但接近 0 时下降会越来越慢。
+      介入年份不会改变上述长期平衡条件，但会改变治理开始时的种群规模和治理后累计清除量。
     </div>
 
     <div class="assumptions">
       <b>模型边界：</b>
-      本工具用于课堂理解“增长—清除—平衡”的关系，并非对真实互花米草治理效果的现场预测。
-      模型假设 K、r 与 c 在模拟期内固定，且暂不考虑种子库、外来迁入、空间扩散、季节性、清除效率差异与重复萌发等现实因素。
+      本工具用于课堂理解“增长—清除—治理时机”的关系，并非对真实互花米草治理效果的现场预测。
+      模型假设 K、r 与 c 在模拟期内固定，暂不考虑种子库、外来迁入、空间扩散、季节性、清除效率差异与重复萌发等现实因素。
+      页面中的“治理后 10 年累计清除量”用于比较不同介入时机下的治理工作量，不等同于实际经济成本。
+    </div>
+
+    <div class="classroom">
+      课堂玩法：可以先固定开始治理年份，比较 c 与 r 的关系；再固定 r 和 c，改变开始治理年份，比较治理后 10 年累计清除量。
     </div>
 
     <div class="actions">
@@ -227,26 +279,32 @@
   var svg = document.getElementById("chart");
   var rSlider = document.getElementById("rSlider");
   var cSlider = document.getElementById("cSlider");
+  var tSlider = document.getElementById("tSlider");
   var rVal = document.getElementById("rVal");
   var cVal = document.getElementById("cVal");
-  var verdict = document.getElementById("verdict");
+  var tVal = document.getElementById("tVal");
   var eqMetric = document.getElementById("eqMetric");
   var y30Metric = document.getElementById("y30Metric");
-  var stateMetric = document.getElementById("stateMetric");
+  var cumMetric = document.getElementById("cumMetric");
+  var multMetric = document.getElementById("multMetric");
+  var verdict = document.getElementById("verdict");
   var resetBtn = document.getElementById("resetBtn");
   var copyBtn = document.getElementById("copyBtn");
   var status = document.getElementById("status");
 
-  if (!svg || !rSlider || !cSlider || !rVal || !cVal || !verdict) return;
+  if (!svg || !rSlider || !cSlider || !tSlider || !verdict) return;
 
   var NS = "http://www.w3.org/2000/svg";
-  var K = 100, N0 = 5, YEARS = 30;
+  var K = 100, N0 = 1, YEARS = 30;
   var PL = 56, PR = 12, PT = 16, PB = 30;
-  var W = 600, H = 320;
+  var W = 600, H = 330;
   var plotW = W - PL - PR, plotH = H - PT - PB;
 
   function xOf(year) { return PL + (year / YEARS) * plotW; }
-  function yOf(n) { return PT + (1 - Math.max(0, Math.min(100, n)) / 100) * plotH; }
+  function yOf(n) {
+    var safe = Math.max(0, Math.min(100, n));
+    return PT + (1 - safe / 100) * plotH;
+  }
 
   function el(tag, attrs) {
     var e = document.createElementNS(NS, tag);
@@ -258,17 +316,27 @@
     while (g.firstChild) g.removeChild(g.firstChild);
   }
 
-  function simulate(r, c) {
+  // T0 表示从第 T0 年开始实施清除。
+  // 累计清除量统计治理开始后的 10 个年份，用于公平比较不同介入时机。
+  function simulate(r, c, T0) {
     var arr = [N0];
+    var cum = 0;
     var n = N0;
+
     for (var t = 1; t <= YEARS; t++) {
       var grow = r * n * (1 - n / K);
-      var after = n + grow - c * n;
+      var after = n + grow;
+
+      if (t >= T0) {
+        if (t <= T0 + 9) cum += c * n;
+        after -= c * n;
+      }
+
       if (after < 0) after = 0;
       n = after;
       arr.push(n);
     }
-    return arr;
+    return { arr: arr, cum: cum };
   }
 
   function pathFor(arr) {
@@ -281,11 +349,18 @@
 
   function text(x, y, str, fill, size, anchor) {
     var t = el("text", {
-      x: x, y: y, fill: fill, "font-size": size,
+      x: x,
+      y: y,
+      fill: fill,
+      "font-size": size,
       "text-anchor": anchor || "start"
     });
     t.textContent = str;
     return t;
+  }
+
+  function fmt1(v) {
+    return (Math.round(v * 10) / 10).toFixed(1);
   }
 
   function readParamsFromUrl() {
@@ -293,8 +368,11 @@
       var p = new URLSearchParams(window.location.search);
       var r = Number(p.get("r"));
       var c = Number(p.get("c"));
-      if (Number.isFinite(r) && r >= 20 && r <= 150) rSlider.value = Math.round(r / 5) * 5;
+      var t = Number(p.get("t"));
+
+      if (Number.isFinite(r) && r >= 20 && r <= 150) rSlider.value = Math.round(r);
       if (Number.isFinite(c) && c >= 0 && c <= 100) cSlider.value = Math.round(c);
+      if (Number.isFinite(t) && t >= 1 && t <= 20) tSlider.value = Math.round(t);
     } catch (e) {}
   }
 
@@ -304,21 +382,41 @@
       var u = new URL(window.location.href);
       u.searchParams.set("r", rSlider.value);
       u.searchParams.set("c", cSlider.value);
+      u.searchParams.set("t", tSlider.value);
       window.history.replaceState({}, "", u.toString());
     } catch (e) {}
+  }
+
+  function ratioText(mult, base) {
+    if (base <= 0) return "—";
+    return mult.toFixed(1) + " 倍";
+  }
+
+  function timingSentence(T0, mult, base) {
+    if (base <= 0) {
+      return "当前清除比例为 0，治理后 10 年累计清除量为 0，因此不比较介入年份的倍数。";
+    }
+    return "第 <b>" + T0 + "</b> 年介入，治理后 10 年累计清除量约为第 1 年就治理的 <b>" +
+      mult.toFixed(1) + " 倍</b>。";
   }
 
   function draw() {
     var r = Number(rSlider.value) / 100;
     var c = Number(cSlider.value) / 100;
+    var T0 = parseInt(tSlider.value, 10);
 
-    rVal.textContent = Math.round(r * 100) + "%/年";
-    cVal.textContent = Math.round(c * 100) + "%";
+    var rPct = Math.round(r * 100);
+    var cPct = Math.round(c * 100);
+
+    rVal.textContent = rPct + "%/年";
+    cVal.textContent = cPct + "%";
+    tVal.textContent = "第 " + T0 + " 年";
 
     var grid = document.getElementById("grid");
     var curves = document.getElementById("curves");
+    var marks = document.getElementById("marks");
     var labels = document.getElementById("labels");
-    clear(grid); clear(curves); clear(labels);
+    clear(grid); clear(curves); clear(marks); clear(labels);
 
     var ticks = [0, 25, 50, 75, 100];
     for (var i = 0; i < ticks.length; i++) {
@@ -330,13 +428,15 @@
       grid.appendChild(text(PL - 6, y + 4, v + "%", "#7a857f", 11, "end"));
     }
 
-    for (var yr = 0; yr <= YEARS; yr += 5) {
+    for (var yr = 0; yr <= YEARS; yr++) {
       var x = xOf(yr);
-      grid.appendChild(el("line", {
-        x1: x, y1: PT, x2: x, y2: PT + plotH,
-        stroke: "#EFEFEA", "stroke-width": 1
-      }));
-      grid.appendChild(text(x, PT + plotH + 16, yr + "年", "#7a857f", 11, "middle"));
+      if (yr % 5 === 0) {
+        grid.appendChild(el("line", {
+          x1: x, y1: PT, x2: x, y2: PT + plotH,
+          stroke: "#E6E6E0", "stroke-width": 1
+        }));
+        grid.appendChild(text(x, PT + plotH + 16, yr + "年", "#7a857f", 11, "middle"));
+      }
     }
 
     grid.appendChild(el("line", {
@@ -348,17 +448,30 @@
       stroke: "#B9C0BC", "stroke-width": 1.2
     }));
 
-    var ref = simulate(r, 0);
+    var ref = simulate(r, 0, 1);
     curves.appendChild(el("path", {
-      d: pathFor(ref), fill: "none", stroke: "#9AA5A0",
+      d: pathFor(ref.arr), fill: "none", stroke: "#9AA5A0",
       "stroke-width": 1.8, "stroke-dasharray": "5 4"
     }));
 
-    var main = simulate(r, c);
+    var mg = simulate(r, c, T0);
+    var arr = mg.arr;
     curves.appendChild(el("path", {
-      d: pathFor(main), fill: "none", stroke: "#2F6FB3",
+      d: pathFor(arr), fill: "none", stroke: "#2F6FB3",
       "stroke-width": 2.6, "stroke-linecap": "round"
     }));
+
+    var gx = xOf(T0);
+    var gy = yOf(arr[T0]);
+    marks.appendChild(el("line", {
+      x1: gx, y1: PT, x2: gx, y2: PT + plotH,
+      stroke: "#E0A93C", "stroke-width": 1.4, "stroke-dasharray": "6 4"
+    }));
+    marks.appendChild(el("circle", {
+      cx: gx, cy: gy, r: 5,
+      fill: "#C8A44A", stroke: "#fff", "stroke-width": 1.5
+    }));
+    labels.appendChild(text(gx, PT + 14, "第 " + T0 + " 年介入", "#8a6d1a", 11, "middle"));
 
     var eq = c < r ? K * (1 - c / r) : 0;
     var eqY = yOf(Math.max(eq, 0.5));
@@ -367,42 +480,46 @@
       stroke: "#C0552A", "stroke-width": 1.6, "stroke-dasharray": "7 4"
     }));
     labels.appendChild(text(
-      PL + plotW - 4, eqY - 5,
+      PL + plotW - 4,
+      eqY - 5,
       c < r ? "长期平衡 ≈ " + Math.round(eq) + "%K" : "长期趋向 0",
-      "#C0552A", 11, "end"
+      "#C0552A",
+      11,
+      "end"
     ));
 
-    labels.appendChild(text(PL + 6, PT + 12, "— 无清除", "#9AA5A0", 11));
-    labels.appendChild(text(PL + 86, PT + 12, "— 当前治理", "#2F6FB3", 11));
-    labels.appendChild(text(PL + 180, PT + 12, "— 长期平衡", "#C0552A", 11));
+    labels.appendChild(text(PL + 6, PT + 12, "— 无治理", "#9AA5A0", 11));
+    labels.appendChild(text(PL + 82, PT + 12, "— 当前治理", "#2F6FB3", 11));
+    labels.appendChild(text(PL + 176, PT + 12, "— 长期平衡", "#C0552A", 11));
+    labels.appendChild(text(PL + 274, PT + 12, "● 开始治理", "#C8A44A", 11));
 
-    var rPct = Math.round(r * 100);
-    var cPct = Math.round(c * 100);
-    var y30 = main[main.length - 1];
+    var base = simulate(r, c, 1).cum;
+    var mult = base > 0 ? mg.cum / base : 0;
+    var y30 = arr[arr.length - 1];
 
     eqMetric.textContent = c < r ? Math.round(eq) + "%K" : "0";
-    y30Metric.textContent = (Math.round(y30 * 10) / 10) + "%K";
+    y30Metric.textContent = fmt1(y30) + "%K";
+    cumMetric.textContent = fmt1(mg.cum);
+    multMetric.textContent = ratioText(mult, base);
+
+    var timing = timingSentence(T0, mult, base);
 
     if (c < r) {
       var eqPct = Math.round((1 - c / r) * 100);
-      stateMetric.textContent = "仍会维持";
       verdict.innerHTML =
-        '<b style="color:#C0552A;">c=' + cPct + '% ＜ r=' + rPct + '%：仍存在正平衡。</b><br>' +
-        '在本模型中，清除会把种群从“无治理时接近 K”压低到约 <b>' + eqPct +
-        '%K</b>，但不会长期压到 0。原因不是简单地比较“清掉多少”和“长出多少”，' +
-        '而是增长量还会随当前种群密度变化。';
+        '<b style="color:#C0552A;">清除比例 ' + cPct + '% ＜ 年增长率 ' + rPct +
+        '%：仍存在正的长期平衡。</b><br>' +
+        '种群密度最终仍会恢复到约 <b>' + eqPct + '%K</b>。' + timing;
     } else if (c > r) {
-      stateMetric.textContent = "持续下降";
       verdict.innerHTML =
-        '<b style="color:#2F6FB3;">c=' + cPct + '% ＞ r=' + rPct + '%：低密度下仍能被继续压低。</b><br>' +
-        '0 成为稳定状态，种群会逐年向 0 衰减。c 比 r 高得越多，通常压低速度越快。' +
-        '这里的“趋向 0”是模型中的长期结果，不等于现实治理中一定能彻底清除。';
+        '<b style="color:#2F6FB3;">清除比例 ' + cPct + '% ＞ 年增长率 ' + rPct +
+        '%：种群将持续向 0 衰减。</b><br>' +
+        '在该模型下，长期平衡为 <b>0</b>。' + timing;
     } else {
-      stateMetric.textContent = "临界阈值";
       verdict.innerHTML =
-        '<b style="color:#8a6d1a;">c=r=' + rPct + '%：这是临界阈值，不是“几乎不涨不跌”。</b><br>' +
-        '代入公式可得 N(t+1)=N(t)−r·N(t)²/K，因此只要 N(t)&gt;0，种群仍会下降；' +
-        '但当种群已经很低时，下降会越来越慢，长期渐近趋向 0。';
+        '<b style="color:#8A6D1A;">清除比例 ' + cPct + '% ＝ 年增长率 ' + rPct +
+        '%：处于临界阈值。</b><br>' +
+        '种群仍会下降，但接近 0 时下降速度会逐渐变慢。' + timing;
     }
 
     updateUrlSilently();
@@ -410,10 +527,12 @@
 
   rSlider.addEventListener("input", draw);
   cSlider.addEventListener("input", draw);
+  tSlider.addEventListener("input", draw);
 
   resetBtn.addEventListener("click", function () {
     rSlider.value = 100;
     cSlider.value = 50;
+    tSlider.value = 3;
     status.textContent = "";
     draw();
   });
@@ -424,10 +543,11 @@
       var u = new URL(window.location.href);
       u.searchParams.set("r", rSlider.value);
       u.searchParams.set("c", cSlider.value);
+      u.searchParams.set("t", tSlider.value);
       await navigator.clipboard.writeText(u.toString());
       status.textContent = "已复制当前参数链接";
     } catch (e) {
-      status.textContent = "本地文件可能无法直接复制；部署到 HTTPS 后即可使用";
+      status.textContent = "部署到 HTTPS 后即可复制当前参数链接";
     }
   });
 
