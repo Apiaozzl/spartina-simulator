@@ -199,8 +199,8 @@
           <span>年增长率 r</span>
           <b id="rVal" class="value">100%/年</b>
         </div>
-        <input id="rSlider" type="range" min="20" max="150" step="1" value="100" aria-label="年增长率">
-        <div class="hint">范围 20%–150%</div>
+        <input id="rSlider" type="range" min="1" max="100" step="1" value="100" aria-label="年增长率">
+        <div class="hint">范围 1%–100%</div>
       </div>
     </section>
 
@@ -370,7 +370,7 @@
       var c = Number(p.get("c"));
       var t = Number(p.get("t"));
 
-      if (Number.isFinite(r) && r >= 20 && r <= 150) rSlider.value = Math.round(r);
+      if (Number.isFinite(r) && r >= 1 && r <= 100) rSlider.value = Math.round(r);
       if (Number.isFinite(c) && c >= 0 && c <= 100) cSlider.value = Math.round(c);
       if (Number.isFinite(t) && t >= 1 && t <= 20) tSlider.value = Math.round(t);
     } catch (e) {}
